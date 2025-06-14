@@ -25,7 +25,6 @@ export class MysqlUserRepository implements UserRepository {
    * @returns A User entity or null if not found.
    */
   async findByEmail(email: string): Promise<User | null> {
-    // Correctly query for a single user by email
     const user = await db.query.users.findFirst({
       where: eq(users.email, email),
     });
@@ -38,17 +37,13 @@ export class MysqlUserRepository implements UserRepository {
    * @param data An object containing the user's email.
    * @returns The newly created User entity.
    */
-  async create(data: { email: string }): Promise<User> {
-    // Insert the new user with a generated public-facing userId
+  async create(): Promise<User> {
     const insertResult = await db.insert(users).values({
-      email: data.email,
-      userId: uuidv4(), // Generates a unique v4 UUID
-      hashedPassword: '', // Set a default or handle this based on your needs
+      userId: uuidv4(),
     });
 
     const newUserId = insertResult[0].insertId;
 
-    // Fetch and return the newly created user
     const newUser = await this.findById(newUserId);
 
     if (!newUser) {

@@ -1,13 +1,13 @@
 type UserProps = {
   id: number;
   userId: string;
-  email: string;
+  email: string | null;
 };
 
 export class User {
   public readonly id: number;
   public readonly userId: string;
-  public readonly email: string;
+  public readonly email: string | null;
 
   constructor({ id, userId, email }: UserProps) {
     this.id = id;

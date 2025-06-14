@@ -1,3 +1,4 @@
+import { config } from '../../config';
 import Layout from './Layout';
 import { Html } from '@kitajs/html';
 
@@ -11,25 +12,11 @@ interface LoginPageProps {
   error?: string;
 }
 
-const googleAuthUrl = 'https://accounts.google.com/o/oauth2/v2/auth';
-
-const params = new URLSearchParams({
-  client_id: process.env.GOOGLE_CLIENT_ID!,
-  redirect_uri: process.env.GOOGLE_CALLBACK_URL!,
-  response_type: 'code', // We are asking for an authorization code
-  scope: 'openid profile email', // Request basic profile info and email
-  prompt: 'select_account', // Recommended to let users choose an account
-});
-
 export const LoginPage = (props: LoginPageProps) => {
-  const loginGoogle = async () => {
-    const df = await fetch('');
-  };
-
-  const googleLogin = new URL('http://localhost:3000');
-  googleLogin.search = new URLSearchParams({ ...props }).toString();
-
   const state = JSON.stringify(props);
+
+  const googleLoginUrl = new URL(`${config.url.baseUrl}/api/auth/google/login`);
+  googleLoginUrl.searchParams.set('state', state);
 
   return (
     <Layout title='Sign In'>
@@ -222,51 +209,22 @@ export const LoginPage = (props: LoginPageProps) => {
           </div>
 
           {/* --- NEW: Social Login Buttons --- */}
-          <form
-            action={googleAuthUrl}
+          <div
             style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
           >
-            <input
-              name='client_id'
-              value={params.get('client_id')!}
-              hidden
-            />
-            <input
-              name='redirect_uri'
-              value={params.get('redirect_uri')!}
-              hidden
-            />
-            <input
-              name='response_type'
-              value={params.get('response_type')!}
-              hidden
-            />
-            <input
-              name='scope'
-              value={params.get('scope')!}
-              hidden
-            />
-            <input
-              name='state'
-              value={state}
-              hidden
-            />
-            {/* Google Button */}
-            <button
-              type='submit'
+            <a
+              href={googleLoginUrl.toString()}
               style={{
+                /* your button styles */
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: '100%',
                 padding: '12px',
                 backgroundColor: '#fff',
                 color: '#444',
                 border: '1px solid #ddd',
                 borderRadius: '8px',
-                fontSize: '1rem',
-                fontWeight: 500,
-                cursor: 'pointer',
+                textDecoration: 'none',
               }}
             >
               <svg
@@ -294,7 +252,8 @@ export const LoginPage = (props: LoginPageProps) => {
                 />
               </svg>
               Continue with Google
-            </button>
+            </a>
+
             {/* Facebook Button (example) */}
             <button
               type='button'
@@ -325,7 +284,7 @@ export const LoginPage = (props: LoginPageProps) => {
               </svg>
               Continue with Facebook
             </button>
-          </form>
+          </div>
         </div>
 
         {/* --- NEW: Footer Links --- */}

@@ -3,14 +3,42 @@ import { db } from '../db';
 import { socialIdentities } from '../schema';
 import { SocialIdentity } from '../../../domain/entities/social-identity.entity';
 import { SocialIdentityRepository } from '../../../domain/repositories/social-identity.repository';
+import { User } from '../../../domain/entities/user.entity';
 import { SocialProviderType } from '../../../application/enums/provider.enum';
 
 export class MysqlSocialIdentityRepository implements SocialIdentityRepository {
   /**
-   * Finds a social identity record based on the provider and the user's ID from that provider.
+   * This is the new, correct method. It finds a user directly by their
+   * linked social provider information using a single, efficient database query.
    * @param provider The name of the social provider (e.g., 'google').
    * @param providerUserId The user's unique ID from that provider.
-   * @returns A SocialIdentity entity or null if not found.
+   * @returns A User entity if found, otherwise null.
+   */
+  async findUserBySocialIdentity(
+    provider: SocialProviderType,
+    providerUserId: string
+  ): Promise<SocialIdentity | null> {
+    const socialIdentity = await db.query.socialIdentities.findFirst({
+      // The 'where' clause correctly filters the 'social_identities' table
+      where: and(
+        eq(socialIdentities.provider, provider),
+        eq(socialIdentities.providerUserId, providerUserId)
+      ),
+      // The 'with' clause fetches the related user in the same query
+      with: {
+        user: true,
+      },
+    });
+
+    if (!socialIdentity || !socialIdentity.user) {
+      return null;
+    }
+
+    return new SocialIdentity(socialIdentity);
+  }
+
+  /**
+   * Finds a social identity record based on the provider and the user's ID from that provider.
    */
   async findByProviderUserId(
     provider: SocialProviderType,
@@ -32,21 +60,14 @@ export class MysqlSocialIdentityRepository implements SocialIdentityRepository {
 
   /**
    * Creates a new social identity record to link a user account with a social provider.
-   * @param data An object containing userId, provider, and providerUserId.
-   * @returns The newly created SocialIdentity entity.
    */
   async create(data: {
     userId: number;
     provider: SocialProviderType;
     providerUserId: string;
   }): Promise<SocialIdentity> {
-    // Insert the new record into the database
     const insertResult = await db.insert(socialIdentities).values(data);
-
-    // Get the ID of the row we just inserted
     const newIdentityId = insertResult[0].insertId;
-
-    // Fetch the newly created record from the database using its ID
     const newIdentity = await db.query.socialIdentities.findFirst({
       where: eq(socialIdentities.id, newIdentityId),
     });

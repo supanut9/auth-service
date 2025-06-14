@@ -9,10 +9,12 @@ import { ValidateSessionUseCase } from './application/use-cases/validate-session
 import { MysqlClientRepository } from './infrastructure/persistence/repository/client.repository';
 import { MysqlSessionRepository } from './infrastructure/persistence/repository/session.repository';
 import { GenerateAuthorizationCodeUseCase } from './application/use-cases/generate-authorization-code.use-case';
-import { LoginGoogleUseCase } from './application/use-cases/login-google.use-case';
+import { LoginSocialUseCase } from './application/use-cases/login-social.use-case';
 import { MysqlUserRepository } from './infrastructure/persistence/repository/user.repository';
 import { MysqlSocialIdentityRepository } from './infrastructure/persistence/repository/social-identity.repository';
 import { CreateSessionUseCase } from './application/use-cases/create-session.use-case';
+import { GoogleOAuthService } from './infrastructure/service/google.service';
+import { FatalOAuthError } from './application/errors/oauth.error';
 
 const app = new Elysia();
 
@@ -30,45 +32,47 @@ const validateSessionUseCase = new ValidateSessionUseCase(
   mysqlSessionRepository
 );
 const generateAuthorizationCodeUseCase = new GenerateAuthorizationCodeUseCase();
-const loginGoogleUseCase = new LoginGoogleUseCase(
+const loginSocialUseCase = new LoginSocialUseCase(
   mysqlUserRepository,
   mysqlSocialIdentityRepository
 );
 const createSessionUseCase = new CreateSessionUseCase(mysqlSessionRepository);
 
-// c. Create the controller and inject the use case
+// c. Create service
+const googleOAuthService = new GoogleOAuthService();
+
+// d. Create the controller and inject the use case
 const oauthController = new OauthController(
   validateAuthorizeUseCase,
   validateSessionUseCase,
   generateAuthorizationCodeUseCase
 );
 const authController = new AuthController(
-  loginGoogleUseCase,
+  googleOAuthService,
+  loginSocialUseCase,
   createSessionUseCase
 );
 
-app.onError(({ error, code, set }) => {
-  // Log the actual error for debugging
+app.onError(({ error, set }) => {
   console.error(error);
 
-  // Handle our custom HTTP exceptions
+  if (error instanceof FatalOAuthError) {
+    set.status = error.status;
+    // You can render a dedicated error page here
+    return `
+      <div style="font-family: sans-serif; text-align: center; padding: 40px;">
+        <h1 style="color: #d32f2f;">Configuration Error</h1>
+        <p>${error.message}</p>
+      </div>
+    `;
+  }
+
   if (error instanceof HttpException) {
     set.status = error.status;
-
     return {
       status: error.status,
       error: error.error,
       message: error.message,
-    };
-  }
-
-  // Handle Elysia's built-in validation errors consistently
-  if (code === 'VALIDATION') {
-    set.status = 400;
-    return {
-      status: 400,
-      error: 'VALIDATION_ERROR',
-      message: 'Input validation failed',
     };
   }
 });

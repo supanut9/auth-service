@@ -29,7 +29,7 @@ export const codeChallengeMethodEnum = mysqlEnum('code_challenge_method', [
 export const users = mysqlTable('users', {
   id: int('id').autoincrement().primaryKey(),
   userId: varchar('user_id', { length: 36 }).notNull().unique(),
-  email: varchar('email', { length: 255 }).notNull().unique(),
+  email: varchar('email', { length: 255 }).unique(),
   hashedPassword: varchar('hashed_password', { length: 255 }),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),

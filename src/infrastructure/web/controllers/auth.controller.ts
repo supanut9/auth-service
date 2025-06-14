@@ -1,101 +1,100 @@
+// src/infrastructure/web/controllers/auth.controller.ts (Finalized)
 import { Context, redirect } from 'elysia';
-import { OAuth2Client } from 'google-auth-library'; // 1. Import Google's library
-import { LoginGoogleUseCase } from '../../../application/use-cases/login-google.use-case';
 import { CreateSessionUseCase } from '../../../application/use-cases/create-session.use-case';
-// import jwt from 'jsonwebtoken'; // To create your own session token
+import { LoginSocialUseCase } from '../../../application/use-cases/login-social.use-case'; // Updated import
+import { GoogleOAuthService } from '../../service/google.service';
+// import { FacebookOAuthService } from '../../service/facebook.service'; // Assumed for the future
+import { config } from '../../../config';
+import { SocialProviderType } from '../../../application/enums/provider.enum';
 
-// 2. Initialize the Google Auth Client outside your controller
-// This reuses the same client instance for all requests.
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+// A standardized object shape for user info from any social provider
+interface SocialUserInfo {
+  id: string;
+  email: string;
+}
 
 export class AuthController {
   constructor(
-    private readonly loginGoogleUseCase: LoginGoogleUseCase,
+    private readonly googleOAuthService: GoogleOAuthService,
+    // private readonly facebookOAuthService: FacebookOAuthService, // Inject when you create it
+    private readonly loginSocialUseCase: LoginSocialUseCase, // Updated use case
     private readonly createSessionUseCase: CreateSessionUseCase
   ) {}
 
-  // This method is for your own email/password login
-  async login(context: Context) {
-    const { set, cookie } = context;
+  login(context: Context) {}
 
-    // ... your password validation logic here ...
-    const user = { id: 'user-from-db-123' };
+  // ... socialLoginRedirect method remains the same ...
+  socialLoginRedirect(context: Context) {
+    const provider = context.params.provider as SocialProviderType;
+    const { state } = context.query;
 
-    // Create your application's session token
-    const sessionToken = 'session_token';
+    let authorizationUrl = '';
 
-    cookie.auth_token.set({
-      // Changed to auth_token for consistency
-      value: sessionToken,
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production', // Only secure in production
-      path: '/',
-      sameSite: 'lax',
-      maxAge: 7 * 86400,
-    });
+    if (provider === SocialProviderType.GOOGLE) {
+      authorizationUrl = this.googleOAuthService.getAuthorizationUrl(
+        state as string
+      );
+    } else if (provider === SocialProviderType.FACEBOOK) {
+      // authorizationUrl = this.facebookOAuthService.getAuthorizationUrl(state as string);
+    } else {
+      throw new Error('Unsupported provider');
+    }
 
-    return { success: true, message: 'Logged in successfully' };
+    return redirect(authorizationUrl, 302);
   }
 
-  // This method handles the completed Google Login flow
-  async googleCallback(context: Context) {
-    const { query, cookie, set } = context;
+  async socialCallback(context: Context) {
+    const { params, query, cookie } = context;
+    const { provider } = params as { provider: SocialProviderType };
     const { code, state } = query;
 
-    if (!code) {
-      set.status = 400;
-      return { error: 'Authorization code is missing.' };
+    if (!code || typeof code !== 'string') {
+      return redirect(`/login?error=invalid_code&provider=${provider}`, 307);
     }
 
     try {
-      // --- Exchange code for tokens (your existing code is great) ---
-      const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code,
-          client_id: process.env.GOOGLE_CLIENT_ID,
-          client_secret: process.env.GOOGLE_CLIENT_SECRET,
-          redirect_uri: process.env.GOOGLE_CALLBACK_URL,
-          grant_type: 'authorization_code',
-        }),
-      });
-      const tokens = await tokenResponse.json();
+      let userInfo: SocialUserInfo;
 
-      if (tokens.error) throw new Error(tokens.error_description);
+      // Step 1: Get user info from the correct provider service
+      if (provider === SocialProviderType.GOOGLE) {
+        const googleUser = await this.googleOAuthService.getUserInfoFromCode(
+          code
+        );
+        userInfo = { id: googleUser.googleId, email: googleUser.email };
+      } else if (provider === SocialProviderType.FACEBOOK) {
+        // const facebookUser = await this.facebookOAuthService.getUserInfoFromCode(code);
+        // userInfo = { id: facebookUser.facebookId, email: facebookUser.email };
+        throw new Error('Facebook login not yet implemented.'); // Placeholder
+      } else {
+        throw new Error(`Unsupported provider: ${provider}`);
+      }
 
-      // --- a. Securely verify the id_token and get user info ---
-      const ticket = await googleClient.verifyIdToken({
-        idToken: tokens.id_token,
-        audience: process.env.GOOGLE_CLIENT_ID,
-      });
-
-      const googlePayload = ticket.getPayload();
-      if (!googlePayload) throw new Error('Could not verify Google user.');
-
-      const { sub: googleId, email, name, picture } = googlePayload;
-
-      const user = await this.loginGoogleUseCase.execute({
-        googleId,
-        email: email as string,
+      // Step 2: Use the generic social login use case
+      const user = await this.loginSocialUseCase.execute({
+        provider: provider,
+        providerId: userInfo.id,
+        email: userInfo.email,
       });
 
+      // Step 3: Create a session (this part is already generic)
       const session = await this.createSessionUseCase.execute(user.id);
 
-      cookie.session_token.set({
+      cookie[config.session.cookieName].set({
         value: session.sessionToken,
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         path: '/',
         sameSite: 'lax',
-        maxAge: 7 * 86400,
+        maxAge: config.session.expiresInDays * 86400,
       });
 
+      // Step 4: Redirect back to the OAuth flow (already generic)
       let authorizeRedirect = '/oauth/authorize';
       if (state) {
         try {
-          const decodedState = JSON.parse(state as string);
-          const originalParams = new URLSearchParams(decodedState).toString();
+          const originalParams = new URLSearchParams(
+            JSON.parse(state as string)
+          ).toString();
           authorizeRedirect = `/oauth/authorize?${originalParams}`;
         } catch (e) {
           console.error('Failed to parse state parameter', e);
@@ -104,9 +103,9 @@ export class AuthController {
 
       return redirect(authorizeRedirect, 307);
     } catch (error) {
-      console.error('An error occurred during Google callback:', error);
-      // On failure, redirect back to the login page with an error
-      return redirect('/login?error=google_failed', 307);
+      console.error(`An error occurred during ${provider} callback:`, error);
+      // Make the error redirect more specific
+      return redirect(`/login?error=${provider}_failed`, 307);
     }
   }
 }
