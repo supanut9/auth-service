@@ -15,6 +15,7 @@ import { MysqlSocialIdentityRepository } from './infrastructure/persistence/repo
 import { CreateSessionUseCase } from './application/use-cases/create-session.use-case';
 import { GoogleOAuthService } from './infrastructure/service/google.service';
 import { FatalOAuthError } from './application/errors/oauth.error';
+import { FacebookOAuthService } from './infrastructure/service/facebook.service';
 
 const app = new Elysia();
 
@@ -38,8 +39,9 @@ const loginSocialUseCase = new LoginSocialUseCase(
 );
 const createSessionUseCase = new CreateSessionUseCase(mysqlSessionRepository);
 
-// c. Create service
+// External Services
 const googleOAuthService = new GoogleOAuthService();
+const facebookOAuthService = new FacebookOAuthService();
 
 // d. Create the controller and inject the use case
 const oauthController = new OauthController(
@@ -49,6 +51,7 @@ const oauthController = new OauthController(
 );
 const authController = new AuthController(
   googleOAuthService,
+  facebookOAuthService,
   loginSocialUseCase,
   createSessionUseCase
 );

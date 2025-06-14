@@ -6,6 +6,7 @@ import { GoogleOAuthService } from '../../service/google.service';
 // import { FacebookOAuthService } from '../../service/facebook.service'; // Assumed for the future
 import { config } from '../../../config';
 import { SocialProviderType } from '../../../application/enums/provider.enum';
+import { FacebookOAuthService } from '../../service/facebook.service';
 
 // A standardized object shape for user info from any social provider
 interface SocialUserInfo {
@@ -16,7 +17,7 @@ interface SocialUserInfo {
 export class AuthController {
   constructor(
     private readonly googleOAuthService: GoogleOAuthService,
-    // private readonly facebookOAuthService: FacebookOAuthService, // Inject when you create it
+    private readonly facebookOAuthService: FacebookOAuthService,
     private readonly loginSocialUseCase: LoginSocialUseCase, // Updated use case
     private readonly createSessionUseCase: CreateSessionUseCase
   ) {}
@@ -35,7 +36,9 @@ export class AuthController {
         state as string
       );
     } else if (provider === SocialProviderType.FACEBOOK) {
-      // authorizationUrl = this.facebookOAuthService.getAuthorizationUrl(state as string);
+      authorizationUrl = this.facebookOAuthService.getAuthorizationUrl(
+        state as string
+      );
     } else {
       throw new Error('Unsupported provider');
     }
@@ -62,9 +65,9 @@ export class AuthController {
         );
         userInfo = { id: googleUser.googleId, email: googleUser.email };
       } else if (provider === SocialProviderType.FACEBOOK) {
-        // const facebookUser = await this.facebookOAuthService.getUserInfoFromCode(code);
-        // userInfo = { id: facebookUser.facebookId, email: facebookUser.email };
-        throw new Error('Facebook login not yet implemented.'); // Placeholder
+        const facebookUser =
+          await this.facebookOAuthService.getUserInfoFromCode(code);
+        userInfo = { id: facebookUser.id, email: facebookUser.email };
       } else {
         throw new Error(`Unsupported provider: ${provider}`);
       }

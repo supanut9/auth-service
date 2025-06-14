@@ -18,6 +18,11 @@ export const LoginPage = (props: LoginPageProps) => {
   const googleLoginUrl = new URL(`${config.url.baseUrl}/api/auth/google/login`);
   googleLoginUrl.searchParams.set('state', state);
 
+  const facebookLoginUrl = new URL(
+    `${config.url.baseUrl}/api/auth/facebook/login`
+  );
+  facebookLoginUrl.searchParams.set('state', state);
+
   return (
     <Layout title='Sign In'>
       <div
@@ -215,7 +220,6 @@ export const LoginPage = (props: LoginPageProps) => {
             <a
               href={googleLoginUrl.toString()}
               style={{
-                /* your button styles */
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -254,22 +258,18 @@ export const LoginPage = (props: LoginPageProps) => {
               Continue with Google
             </a>
 
-            {/* Facebook Button (example) */}
-            <button
-              type='button'
+            <a
+              href={facebookLoginUrl.toString()}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: '100%',
                 padding: '12px',
                 backgroundColor: '#1877F2',
                 color: '#fff',
-                border: 'none',
+                border: '1px solid #ddd',
                 borderRadius: '8px',
-                fontSize: '1rem',
-                fontWeight: 500,
-                cursor: 'pointer',
+                textDecoration: 'none',
               }}
             >
               <svg
@@ -283,7 +283,7 @@ export const LoginPage = (props: LoginPageProps) => {
                 <path d='M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z' />
               </svg>
               Continue with Facebook
-            </button>
+            </a>
           </div>
         </div>
 
