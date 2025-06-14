@@ -10,11 +10,6 @@ import {
 } from 'drizzle-orm/mysql-core';
 
 // --- Enums ---
-export const grantTypeEnum = mysqlEnum('grant_type', [
-  'authorization_code',
-  'client_credentials',
-  'refresh_token',
-]);
 
 export const authMethodEnum = mysqlEnum('token_endpoint_auth_method', [
   'client_secret_basic',
@@ -46,7 +41,7 @@ export const clients = mysqlTable('clients', {
   clientId: varchar('client_id', { length: 36 }).notNull().unique(),
   clientSecret: varchar('client_secret', { length: 255 }).notNull(),
   clientName: varchar('client_name', { length: 255 }).notNull().unique(),
-  grantType: grantTypeEnum.notNull(),
+  grantType: text('scope').notNull(),
   scope: text('scope').notNull(),
   tokenEndpointAuthMethod: authMethodEnum.notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
