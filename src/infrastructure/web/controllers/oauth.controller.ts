@@ -4,11 +4,13 @@ import { FatalOAuthError } from '../../../application/errors/oauth.error';
 import { HttpException } from '../../../application/errors/http.error';
 import { ValidateSessionUseCase } from '../../../application/use-cases/validate-session.use-case';
 import LoginPage from '../../../presentation/components/Login';
+import { GenerateAuthorizationCodeUseCase } from '../../../application/use-cases/generate-authorization-code.use-case';
 
 export class OauthController {
   constructor(
     private readonly validateAuthorizeUseCase: ValidateAuthorizeRequestUseCase,
-    private readonly validateSessionUseCase: ValidateSessionUseCase
+    private readonly validateSessionUseCase: ValidateSessionUseCase,
+    private readonly generateCodeUseCase: GenerateAuthorizationCodeUseCase
   ) {}
 
   async authorize(context: Context) {
@@ -17,7 +19,7 @@ export class OauthController {
     const { set, cookie } = context;
 
     try {
-      await this.validateAuthorizeUseCase.execute({
+      const { client } = await this.validateAuthorizeUseCase.execute({
         clientId: client_id as string,
         redirectUri: redirect_uri as string,
         responseType: response_type as string,
@@ -26,26 +28,28 @@ export class OauthController {
       });
 
       const sessionToken = cookie.session_token.value;
+      const session = sessionToken
+        ? await this.validateSessionUseCase.execute(sessionToken)
+        : null;
 
-      if (!sessionToken) {
-        console.log('REDIRECT TO LOGIN ( COOKIE NOT FOUND )');
+      if (!session) {
+        console.log('No valid session found, rendering Login Page.');
         context.set.headers['Content-Type'] = 'text/html; charset=utf-8';
-
         return LoginPage({ ...(context.query as any) });
       }
 
-      // GET session by authToken
-      const session = await this.validateSessionUseCase.execute(sessionToken);
+      const code = await this.generateCodeUseCase.execute(
+        session.userId,
+        client.id,
+        session.id,
+        redirect_uri as string
+      );
 
-      if (!session) {
-        // show login page
-        console.log('REDIRECT TO LOGIN ( SESSION NOT FOUND )');
+      const redirectUrl = new URL(redirect_uri as string);
+      redirectUrl.searchParams.set('code', code);
+      if (state) {
+        redirectUrl.searchParams.set('state', state);
       }
-
-      const code = 'auth-code';
-
-      const redirectUrl = new URL(redirect_uri);
-      redirectUrl.search = new URLSearchParams({ code, state }).toString();
 
       return redirect(redirectUrl.toString(), 307);
     } catch (error) {

@@ -41,7 +41,7 @@ export const clients = mysqlTable('clients', {
   clientId: varchar('client_id', { length: 36 }).notNull().unique(),
   clientSecret: varchar('client_secret', { length: 255 }).notNull(),
   clientName: varchar('client_name', { length: 255 }).notNull().unique(),
-  grantType: text('scope').notNull(),
+  grantType: text('grant_type').notNull(),
   scope: text('scope').notNull(),
   tokenEndpointAuthMethod: authMethodEnum.notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),

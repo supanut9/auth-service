@@ -9,9 +9,9 @@ export class ValidateSessionUseCase {
     }
 
     try {
-      const user = this.sessionRepository.findBySessionToken(sessionToken);
+      const session = this.sessionRepository.findBySessionToken(sessionToken);
 
-      return user || null;
+      return session || null;
     } catch (error) {
       console.error('Session validation failed:');
       return null;

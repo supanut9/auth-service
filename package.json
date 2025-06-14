@@ -15,7 +15,8 @@
     "elysia": "latest",
     "google-auth-library": "^10.1.0",
     "jsonwebtoken": "^9.0.2",
-    "mysql2": "^3.14.1"
+    "mysql2": "^3.14.1",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "bun-types": "latest",

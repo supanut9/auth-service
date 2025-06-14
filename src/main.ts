@@ -8,12 +8,19 @@ import { AuthController } from './infrastructure/web/controllers/auth.controller
 import { ValidateSessionUseCase } from './application/use-cases/validate-session.use-case';
 import { MysqlClientRepository } from './infrastructure/persistence/repository/client.repository';
 import { MysqlSessionRepository } from './infrastructure/persistence/repository/session.repository';
+import { GenerateAuthorizationCodeUseCase } from './application/use-cases/generate-authorization-code.use-case';
+import { LoginGoogleUseCase } from './application/use-cases/login-google.use-case';
+import { MysqlUserRepository } from './infrastructure/persistence/repository/user.repository';
+import { MysqlSocialIdentityRepository } from './infrastructure/persistence/repository/social-identity.repository';
+import { CreateSessionUseCase } from './application/use-cases/create-session.use-case';
 
 const app = new Elysia();
 
 // a. Create the repository (lowest level)
 const mysqlClientRepository = new MysqlClientRepository();
 const mysqlSessionRepository = new MysqlSessionRepository();
+const mysqlUserRepository = new MysqlUserRepository();
+const mysqlSocialIdentityRepository = new MysqlSocialIdentityRepository();
 
 // b. Create the use case and inject the repository
 const validateAuthorizeUseCase = new ValidateAuthorizeRequestUseCase(
@@ -22,13 +29,23 @@ const validateAuthorizeUseCase = new ValidateAuthorizeRequestUseCase(
 const validateSessionUseCase = new ValidateSessionUseCase(
   mysqlSessionRepository
 );
+const generateAuthorizationCodeUseCase = new GenerateAuthorizationCodeUseCase();
+const loginGoogleUseCase = new LoginGoogleUseCase(
+  mysqlUserRepository,
+  mysqlSocialIdentityRepository
+);
+const createSessionUseCase = new CreateSessionUseCase(mysqlSessionRepository);
 
 // c. Create the controller and inject the use case
 const oauthController = new OauthController(
   validateAuthorizeUseCase,
-  validateSessionUseCase
+  validateSessionUseCase,
+  generateAuthorizationCodeUseCase
 );
-const authController = new AuthController();
+const authController = new AuthController(
+  loginGoogleUseCase,
+  createSessionUseCase
+);
 
 app.onError(({ error, code, set }) => {
   // Log the actual error for debugging

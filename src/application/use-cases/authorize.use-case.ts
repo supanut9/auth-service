@@ -38,11 +38,15 @@ export class ValidateAuthorizeRequestUseCase {
       throw new InvalidRequestError('response_type is missing');
     }
 
-    if (client.grantType !== OAuthGrantType.AUTHORIZATION_CODE) {
+    if (!client.grantTypes.includes(OAuthGrantType.AUTHORIZATION_CODE)) {
       throw new UnauthorizedClientError();
     }
 
-    if (request.responseType !== OAuthResponseType.CODE) {
+    if (
+      ![OAuthResponseType.CODE, OAuthResponseType.ID_TOKEN].includes(
+        request.responseType as OAuthResponseType
+      )
+    ) {
       throw new UnsupportedResponseTypeError();
     }
 

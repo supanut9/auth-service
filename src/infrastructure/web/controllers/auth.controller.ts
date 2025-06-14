@@ -1,5 +1,7 @@
 import { Context, redirect } from 'elysia';
 import { OAuth2Client } from 'google-auth-library'; // 1. Import Google's library
+import { LoginGoogleUseCase } from '../../../application/use-cases/login-google.use-case';
+import { CreateSessionUseCase } from '../../../application/use-cases/create-session.use-case';
 // import jwt from 'jsonwebtoken'; // To create your own session token
 
 // 2. Initialize the Google Auth Client outside your controller
@@ -7,7 +9,10 @@ import { OAuth2Client } from 'google-auth-library'; // 1. Import Google's librar
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 export class AuthController {
-  constructor() {}
+  constructor(
+    private readonly loginGoogleUseCase: LoginGoogleUseCase,
+    private readonly createSessionUseCase: CreateSessionUseCase
+  ) {}
 
   // This method is for your own email/password login
   async login(context: Context) {
@@ -42,9 +47,6 @@ export class AuthController {
       return { error: 'Authorization code is missing.' };
     }
 
-    // Default redirect location if state is not present or invalid
-    let finalRedirectUrl = '/dashboard';
-
     try {
       // --- Exchange code for tokens (your existing code is great) ---
       const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
@@ -60,11 +62,7 @@ export class AuthController {
       });
       const tokens = await tokenResponse.json();
 
-      console.log('token', tokens);
-
       if (tokens.error) throw new Error(tokens.error_description);
-
-      console.log(tokens);
 
       // --- a. Securely verify the id_token and get user info ---
       const ticket = await googleClient.verifyIdToken({
@@ -77,28 +75,15 @@ export class AuthController {
 
       const { sub: googleId, email, name, picture } = googlePayload;
 
-      // TODO: check whether we have googleId if yes, just create session and return if not just create user and attach which googleId and create session
+      const user = await this.loginGoogleUseCase.execute({
+        googleId,
+        email: email as string,
+      });
 
-      // TODO: after create session -> create cookie with that session
+      const session = await this.createSessionUseCase.execute(user.id);
 
-      // TODO: redirect to /authorize with the same query
-
-      //   if (state) {
-      //     const decodedState = JSON.parse(atob(state as string));
-      //     // You would also verify a CSRF token from the state here
-      //     if (decodedState.returnTo) {
-      //       finalRedirectUrl = decodedState.returnTo;
-      //     }
-      //   }
-
-      // 110914249249035508176
-
-      // --- c. Create a session for the user in YOUR app ---
-      const sessionToken = 'session_token';
-
-      // Set the exact same cookie as your normal login method
-      cookie.auth_token.set({
-        value: sessionToken,
+      cookie.session_token.set({
+        value: session.sessionToken,
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         path: '/',
@@ -106,8 +91,18 @@ export class AuthController {
         maxAge: 7 * 86400,
       });
 
-      // --- d. Redirect the user back to your frontend ---
-      return redirect(finalRedirectUrl, 307);
+      let authorizeRedirect = '/oauth/authorize';
+      if (state) {
+        try {
+          const decodedState = JSON.parse(state as string);
+          const originalParams = new URLSearchParams(decodedState).toString();
+          authorizeRedirect = `/oauth/authorize?${originalParams}`;
+        } catch (e) {
+          console.error('Failed to parse state parameter', e);
+        }
+      }
+
+      return redirect(authorizeRedirect, 307);
     } catch (error) {
       console.error('An error occurred during Google callback:', error);
       // On failure, redirect back to the login page with an error

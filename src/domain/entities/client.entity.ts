@@ -4,7 +4,7 @@ type ClientProps = {
   id: number;
   clientId: string;
   clientName: string;
-  grantType: OAuthGrantType;
+  grantTypes: OAuthGrantType[];
   allowedScopes?: string[];
   redirectUris?: string[];
 };
@@ -13,7 +13,7 @@ export class Client {
   public readonly id: number;
   public readonly clientId: string;
   public readonly clientName: string;
-  public readonly grantType: OAuthGrantType;
+  public readonly grantTypes: OAuthGrantType[];
   public readonly allowedScopes?: string[];
   public readonly redirectUris?: string[];
 
@@ -21,14 +21,14 @@ export class Client {
     id,
     clientId,
     clientName,
-    grantType,
+    grantTypes,
     allowedScopes,
     redirectUris,
   }: ClientProps) {
     this.id = id;
     this.clientId = clientId;
     this.clientName = clientName;
-    this.grantType = grantType;
+    this.grantTypes = grantTypes;
     this.allowedScopes = allowedScopes;
     this.redirectUris = redirectUris;
   }

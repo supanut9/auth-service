@@ -31,11 +31,15 @@ export class MysqlClientRepository implements ClientRepository {
 
     const allowedScopes = oauthClientResult.scope.split(' ');
 
+    const grantTypes = oauthClientResult.grantType.split(
+      ' '
+    ) as OAuthGrantType[];
+
     return new Client({
       id: oauthClientResult.id,
       clientId: oauthClientResult.clientId,
       clientName: oauthClientResult.clientName,
-      grantType: oauthClientResult.grantType as OAuthGrantType,
+      grantTypes: grantTypes,
       allowedScopes: allowedScopes,
       redirectUris: redirectUris,
     });
