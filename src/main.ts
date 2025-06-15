@@ -16,6 +16,7 @@ import { CreateSessionUseCase } from './application/use-cases/create-session.use
 import { GoogleOAuthService } from './infrastructure/service/google.service';
 import { FatalOAuthError } from './application/errors/oauth.error';
 import { FacebookOAuthService } from './infrastructure/service/facebook.service';
+import { staticPlugin } from '@elysiajs/static';
 import { LineOAuthService } from './infrastructure/service/line.service';
 
 const app = new Elysia();
@@ -64,7 +65,6 @@ app.onError(({ error, set }) => {
 
   if (error instanceof FatalOAuthError) {
     set.status = error.status;
-    // You can render a dedicated error page here
     return `
       <div style="font-family: sans-serif; text-align: center; padding: 40px;">
         <h1 style="color: #d32f2f;">Configuration Error</h1>
@@ -82,6 +82,8 @@ app.onError(({ error, set }) => {
     };
   }
 });
+
+app.use(staticPlugin());
 
 app.group('/api', (app) => app.use(authRoutes(authController)));
 
