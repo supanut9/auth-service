@@ -7,6 +7,7 @@ import { GoogleOAuthService } from '../../service/google.service';
 import { config } from '../../../config';
 import { SocialProviderType } from '../../../application/enums/provider.enum';
 import { FacebookOAuthService } from '../../service/facebook.service';
+import { LineOAuthService } from '../../service/line.service';
 
 // A standardized object shape for user info from any social provider
 interface SocialUserInfo {
@@ -18,6 +19,7 @@ export class AuthController {
   constructor(
     private readonly googleOAuthService: GoogleOAuthService,
     private readonly facebookOAuthService: FacebookOAuthService,
+    private readonly lineOAuthService: LineOAuthService,
     private readonly loginSocialUseCase: LoginSocialUseCase, // Updated use case
     private readonly createSessionUseCase: CreateSessionUseCase
   ) {}
@@ -37,6 +39,10 @@ export class AuthController {
       );
     } else if (provider === SocialProviderType.FACEBOOK) {
       authorizationUrl = this.facebookOAuthService.getAuthorizationUrl(
+        state as string
+      );
+    } else if (provider === SocialProviderType.LINE) {
+      authorizationUrl = this.lineOAuthService.getAuthorizationUrl(
         state as string
       );
     } else {
@@ -68,6 +74,9 @@ export class AuthController {
         const facebookUser =
           await this.facebookOAuthService.getUserInfoFromCode(code);
         userInfo = { id: facebookUser.id, email: facebookUser.email };
+      } else if (provider === SocialProviderType.LINE) {
+        const lineUser = await this.lineOAuthService.getUserInfoFromCode(code);
+        userInfo = { id: lineUser.id, email: lineUser.email };
       } else {
         throw new Error(`Unsupported provider: ${provider}`);
       }

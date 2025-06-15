@@ -20,6 +20,7 @@ const Layout = ({ children, title = 'My Elysia App' }: LayoutProps) => (
       />
 
       <script src='https://unpkg.com/htmx.org@1.9.12'></script>
+      <script src='https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js'></script>
     </head>
 
     <body>{children}</body>

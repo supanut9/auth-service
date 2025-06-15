@@ -27,6 +27,11 @@ export const config = {
     appSecret: getEnv('FACEBOOK_APP_SECRET'),
     callbackUrl: getEnv('FACEBOOK_CALLBACK_URL'),
   },
+  line: {
+    clientId: getEnv('LINE_CHANNEL_ID'),
+    clientSecret: getEnv('LINE_CHANNEL_SECRET'),
+    callbackUrl: getEnv('LINE_CALLBACK_URL'),
+  },
   session: {
     cookieName: 'session_token',
     expiresInDays: 30,

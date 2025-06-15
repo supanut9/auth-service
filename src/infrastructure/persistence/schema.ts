@@ -17,7 +17,11 @@ export const authMethodEnum = mysqlEnum('token_endpoint_auth_method', [
   'none',
 ]);
 
-export const providerEnum = mysqlEnum('provider', ['google', 'facebook']);
+export const providerEnum = mysqlEnum('provider', [
+  'google',
+  'facebook',
+  'line',
+]);
 
 export const codeChallengeMethodEnum = mysqlEnum('code_challenge_method', [
   'plain',

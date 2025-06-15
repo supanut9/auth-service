@@ -16,6 +16,7 @@ import { CreateSessionUseCase } from './application/use-cases/create-session.use
 import { GoogleOAuthService } from './infrastructure/service/google.service';
 import { FatalOAuthError } from './application/errors/oauth.error';
 import { FacebookOAuthService } from './infrastructure/service/facebook.service';
+import { LineOAuthService } from './infrastructure/service/line.service';
 
 const app = new Elysia();
 
@@ -42,6 +43,7 @@ const createSessionUseCase = new CreateSessionUseCase(mysqlSessionRepository);
 // External Services
 const googleOAuthService = new GoogleOAuthService();
 const facebookOAuthService = new FacebookOAuthService();
+const lineOAuthService = new LineOAuthService();
 
 // d. Create the controller and inject the use case
 const oauthController = new OauthController(
@@ -52,6 +54,7 @@ const oauthController = new OauthController(
 const authController = new AuthController(
   googleOAuthService,
   facebookOAuthService,
+  lineOAuthService,
   loginSocialUseCase,
   createSessionUseCase
 );
