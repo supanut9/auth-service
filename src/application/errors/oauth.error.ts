@@ -30,6 +30,14 @@ export class UnauthorizedClientError extends HttpException {
   }
 }
 
+export class UnsupportedGrantTypeError extends HttpException {
+  constructor(
+    message = 'The authorization grant type is not supported by the authorization server.'
+  ) {
+    super(400, message, 'unsupported_grant_type');
+  }
+}
+
 export class UnsupportedResponseTypeError extends HttpException {
   constructor(
     message = 'The authorization server does not support obtaining an authorization code using this method.'

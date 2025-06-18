@@ -60,29 +60,6 @@ const authController = new AuthController(
   createSessionUseCase
 );
 
-app.onError(({ error, set }) => {
-  console.error(error);
-
-  if (error instanceof FatalOAuthError) {
-    set.status = error.status;
-    return `
-      <div style="font-family: sans-serif; text-align: center; padding: 40px;">
-        <h1 style="color: #d32f2f;">Configuration Error</h1>
-        <p>${error.message}</p>
-      </div>
-    `;
-  }
-
-  if (error instanceof HttpException) {
-    set.status = error.status;
-    return {
-      status: error.status,
-      error: error.error,
-      message: error.message,
-    };
-  }
-});
-
 app.use(staticPlugin());
 
 app.group('/api', (app) => app.use(authRoutes(authController)));
