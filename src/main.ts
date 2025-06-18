@@ -18,6 +18,8 @@ import { FatalOAuthError } from './application/errors/oauth.error';
 import { FacebookOAuthService } from './infrastructure/service/facebook.service';
 import { staticPlugin } from '@elysiajs/static';
 import { LineOAuthService } from './infrastructure/service/line.service';
+import { TokenUseCase } from './application/use-cases/token.use-case';
+import { MysqlAuthorizationCodeRepository } from './infrastructure/persistence/repository/authorization-code.repository';
 
 const app = new Elysia();
 
@@ -26,6 +28,7 @@ const mysqlClientRepository = new MysqlClientRepository();
 const mysqlSessionRepository = new MysqlSessionRepository();
 const mysqlUserRepository = new MysqlUserRepository();
 const mysqlSocialIdentityRepository = new MysqlSocialIdentityRepository();
+const mysqlAuthorizationCodeRepository = new MysqlAuthorizationCodeRepository();
 
 // b. Create the use case and inject the repository
 const validateAuthorizeUseCase = new ValidateAuthorizeRequestUseCase(
@@ -34,12 +37,18 @@ const validateAuthorizeUseCase = new ValidateAuthorizeRequestUseCase(
 const validateSessionUseCase = new ValidateSessionUseCase(
   mysqlSessionRepository
 );
-const generateAuthorizationCodeUseCase = new GenerateAuthorizationCodeUseCase();
+const generateAuthorizationCodeUseCase = new GenerateAuthorizationCodeUseCase(
+  mysqlAuthorizationCodeRepository
+);
 const loginSocialUseCase = new LoginSocialUseCase(
   mysqlUserRepository,
   mysqlSocialIdentityRepository
 );
 const createSessionUseCase = new CreateSessionUseCase(mysqlSessionRepository);
+const tokenUseCase = new TokenUseCase(
+  mysqlClientRepository,
+  mysqlAuthorizationCodeRepository
+);
 
 // External Services
 const googleOAuthService = new GoogleOAuthService();
@@ -50,7 +59,8 @@ const lineOAuthService = new LineOAuthService();
 const oauthController = new OauthController(
   validateAuthorizeUseCase,
   validateSessionUseCase,
-  generateAuthorizationCodeUseCase
+  generateAuthorizationCodeUseCase,
+  tokenUseCase
 );
 const authController = new AuthController(
   googleOAuthService,

@@ -25,7 +25,7 @@ export const providerEnum = mysqlEnum('provider', [
 
 export const codeChallengeMethodEnum = mysqlEnum('code_challenge_method', [
   'plain',
-  's256',
+  'S256',
 ]);
 
 // --- Table Definitions ---

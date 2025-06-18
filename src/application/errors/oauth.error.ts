@@ -14,6 +14,14 @@ export class InvalidRedirectUriError extends FatalOAuthError {
   }
 }
 
+export class InvalidGrantError extends HttpException {
+  constructor(
+    message = 'The provided authorization grant or refresh token is invalid, expired, revoked, or was issued to another client.'
+  ) {
+    super(400, message, 'invalid_grant');
+  }
+}
+
 export class InvalidRequestError extends HttpException {
   constructor(
     message = 'The request is missing a required parameter, includes an invalid parameter value, includes a parameter more than once, or is otherwise malformed.'

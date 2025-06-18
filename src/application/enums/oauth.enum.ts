@@ -35,3 +35,8 @@ export enum TokenEndpointAuthMethod {
    */
   NONE = 'none',
 }
+
+export enum CodeChallengeMethod {
+  S256 = 'S256',
+  PLAIN = 'plain',
+}

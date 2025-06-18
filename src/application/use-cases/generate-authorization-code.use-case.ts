@@ -1,27 +1,31 @@
-import { db } from '../../infrastructure/persistence/db';
-import { authorizationCodes } from '../../infrastructure/persistence/schema';
-import { v4 as uuidv4 } from 'uuid';
+import { CodeChallengeMethod } from '../enums/oauth.enum';
+import { AuthorizationCode } from '../../domain/entities/authorization-code.entity';
+import { AuthorizationCodeRepository } from '../../domain/repositories/authorization-code.repository';
 
 export class GenerateAuthorizationCodeUseCase {
+  constructor(
+    private readonly authorizationCodeRepository: AuthorizationCodeRepository
+  ) {}
+
   async execute(
     userId: number,
     clientId: number,
     sessionId: number,
-    redirectUri: string
+    redirectUri: string,
+    codeChallenge?: string,
+    codeChallengeMethod?: CodeChallengeMethod
   ): Promise<string> {
-    const code = uuidv4();
-
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-
-    await db.insert(authorizationCodes).values({
-      code: code,
-      userId: userId,
-      clientId: clientId,
-      sessionId: sessionId,
-      redirectUri: redirectUri,
-      expiresAt: expiresAt,
+    const authCode = AuthorizationCode.create({
+      userId,
+      clientId,
+      sessionId,
+      redirectUri,
+      codeChallenge,
+      codeChallengeMethod,
     });
 
-    return code;
+    await this.authorizationCodeRepository.save(authCode);
+
+    return authCode.code;
   }
 }

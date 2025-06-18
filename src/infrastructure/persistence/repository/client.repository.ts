@@ -3,7 +3,10 @@ import { db } from '../db';
 import { clients } from '../schema';
 import { Client } from '../../../domain/entities/client.entity';
 import { ClientRepository } from '../../../domain/repositories/client.repository';
-import { OAuthGrantType } from '../../../application/enums/oauth.enum';
+import {
+  OAuthGrantType,
+  TokenEndpointAuthMethod,
+} from '../../../application/enums/oauth.enum';
 
 export class MysqlClientRepository implements ClientRepository {
   async findByClientId(clientId: string): Promise<Client | null> {
@@ -11,9 +14,11 @@ export class MysqlClientRepository implements ClientRepository {
       columns: {
         id: true,
         clientId: true,
+        clientSecret: true,
         clientName: true,
         grantType: true,
         scope: true,
+        tokenEndpointAuthMethod: true,
       },
       where: eq(clients.clientId, clientId),
       with: {
@@ -38,8 +43,11 @@ export class MysqlClientRepository implements ClientRepository {
     return new Client({
       id: oauthClientResult.id,
       clientId: oauthClientResult.clientId,
+      clientSecret: oauthClientResult.clientSecret,
       clientName: oauthClientResult.clientName,
       grantTypes: grantTypes,
+      tokenEndpointAuthMethod:
+        oauthClientResult.tokenEndpointAuthMethod as TokenEndpointAuthMethod,
       allowedScopes: allowedScopes,
       redirectUris: redirectUris,
     });
