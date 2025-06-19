@@ -121,7 +121,7 @@ export class TokenUseCase {
         const accessTokenJti = uuidv4();
 
         const iat = Math.floor(Date.now() / 1000);
-        const exp = iat + 3600; // 3600 seconds = 1 hour
+        const exp = iat + config.tokenExpiresIn.accessToken;
 
         const accessTokenPayload = {
           iss: config.url.baseUrl,
@@ -154,7 +154,9 @@ export class TokenUseCase {
           userId: authCode.userId,
           clientId: client.id,
           sessionId: authCode.sessionId,
-          expiresAt: new Date(Date.now() + 30 * 24 * 3600 * 1000), // 30 days
+          expiresAt: new Date(
+            Date.now() + config.tokenExpiresIn.refreshToken * 1000
+          ),
         });
         await this.refreshTokenRepository.create(refreshToken);
 
@@ -163,7 +165,7 @@ export class TokenUseCase {
           sub: authCode.userId,
           aud: client.clientId,
           iat: iat,
-          exp: exp,
+          exp: iat + config.tokenExpiresIn.idToken,
         };
 
         const idToken = jwt.sign(idTokenPayload, privateKey, {
@@ -174,7 +176,7 @@ export class TokenUseCase {
         return {
           access_token: signedAccessToken,
           token_type: 'Bearer',
-          expires_in: 3600,
+          expires_in: config.tokenExpiresIn.accessToken,
           refresh_token: refreshToken.token,
           id_token: idToken,
         };

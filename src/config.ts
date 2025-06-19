@@ -1,7 +1,7 @@
 import { SignOptions } from 'jsonwebtoken';
 import * as jose from 'jose'; // The library for JWK generation
 import * as path from 'path'; // For handling file paths correctly
-import { createHash } from 'crypto';
+import { createHash, createPublicKey } from 'crypto';
 
 // Define a type for our key objects
 interface IKey {
@@ -29,20 +29,16 @@ const keys: IKey[] = await Promise.all(
     const privateKeyPath = path.resolve(process.cwd(), keyInfo.privateKeyPath);
     const privateKeyPem = await Bun.file(privateKeyPath).text();
 
-    // Use `importPKCS8` to read the private key
-    const privateKeyObject = await jose.importPKCS8(privateKeyPem, 'RS512', {
-      extractable: true,
-    });
-
+    const publicKeyObject = createPublicKey(privateKeyPem);
     // Export the public part of the key into the JWK format
-    const publicKeyJwk = await jose.exportJWK(privateKeyObject);
+    const publicKeyJwk = await jose.exportJWK(publicKeyObject);
 
     const kid = createHash('sha256').update(privateKeyPath).digest('hex');
 
     // Add the required metadata for the JWKS endpoint
     publicKeyJwk.kid = kid;
     publicKeyJwk.alg = 'RS512';
-    publicKeyJwk.use = 'sig'; // Indicate this key is for signature verification
+    publicKeyJwk.use = 'sig';
 
     return {
       kid: kid,
@@ -96,6 +92,11 @@ export const config = {
   },
   authCode: {
     expiresInMinutes: 5,
+  },
+  tokenExpiresIn: {
+    accessToken: 60 * 60, // 1 hour
+    refreshToken: 60 * 60 * 24 * 30, // 30 days
+    idToken: 60 * 60, // 1 hour
   },
   jwt: {
     currentSigningKey,
