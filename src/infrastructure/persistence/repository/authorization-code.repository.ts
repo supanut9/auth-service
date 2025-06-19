@@ -24,6 +24,11 @@ export class MysqlAuthorizationCodeRepository
   async findByCode(code: string): Promise<AuthorizationCode | null> {
     const result = await db.query.authorizationCodes.findFirst({
       where: eq(authorizationCodes.code, code),
+      with: {
+        user: {
+          columns: { id: true, userId: true },
+        },
+      },
     });
 
     if (!result) {
@@ -36,5 +41,12 @@ export class MysqlAuthorizationCodeRepository
       codeChallengeMethod:
         (result.codeChallengeMethod as CodeChallengeMethod) ?? undefined,
     });
+  }
+
+  async markAsUsed(code: string): Promise<void> {
+    await db
+      .update(authorizationCodes)
+      .set({ usedAt: new Date() })
+      .where(eq(authorizationCodes.code, code));
   }
 }

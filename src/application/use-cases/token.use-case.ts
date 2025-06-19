@@ -6,9 +6,16 @@ import {
   UnauthorizedClientError,
   InvalidGrantError,
 } from '../errors/oauth.error';
+import { v4 as uuidv4 } from 'uuid';
 import { ClientRepository } from '../../domain/repositories/client.repository';
 import { Client } from '../../domain/entities/client.entity';
 import { AuthorizationCodeRepository } from '../../domain/repositories/authorization-code.repository';
+import { AccessTokenRepository } from '../../domain/repositories/access-token.repository';
+import { RefreshTokenRepository } from '../../domain/repositories/refresh-token.repository';
+import { AccessToken } from '../../domain/entities/access-token.entity';
+import { RefreshToken } from '../../domain/entities/refresh-token.entity';
+import * as jwt from 'jsonwebtoken';
+import { config } from '../../config';
 
 export interface TokenRequest {
   headers: {
@@ -29,7 +36,9 @@ export interface TokenRequest {
 export class TokenUseCase {
   constructor(
     private readonly clientRepository: ClientRepository,
-    private readonly authorizationCodeRepository: AuthorizationCodeRepository
+    private readonly authorizationCodeRepository: AuthorizationCodeRepository,
+    private readonly accessTokenRepository: AccessTokenRepository,
+    private readonly refreshTokenRepository: RefreshTokenRepository
   ) {}
 
   async execute(request: TokenRequest): Promise<any> {
@@ -96,11 +105,78 @@ export class TokenUseCase {
           throw new InvalidGrantError('Failed to verify code challenge.');
         }
 
-        // TODO:
-        // 1) Mark code as used
-        // 2) Generate access_token & refresh_token & id_token
+        if (authCode.isExpired()) {
+          throw new InvalidGrantError('Authorization code is expired.');
+        }
+
+        if (authCode.usedAt) {
+          throw new InvalidGrantError(
+            'Authorization code has already been used.'
+          );
+        }
+
+        await this.authorizationCodeRepository.markAsUsed(code);
+
+        const { kid, privateKey } = config.jwt.currentSigningKey;
+        const accessTokenJti = uuidv4();
+
+        const iat = Math.floor(Date.now() / 1000);
+        const exp = iat + 3600; // 3600 seconds = 1 hour
+
+        const accessTokenPayload = {
+          iss: config.url.baseUrl,
+          sub: authCode.user?.userId,
+          aud: client.clientId,
+          iat: iat,
+          exp: exp,
+          jti: accessTokenJti,
+          scope: body.scope,
+        };
+
+        const signedAccessToken = jwt.sign(accessTokenPayload, privateKey, {
+          algorithm: config.jwt.signOptions.algorithm,
+          keyid: kid,
+        });
+
+        const accessTokenEntity = new AccessToken({
+          token: accessTokenJti,
+          userId: authCode.userId,
+          clientId: client.id,
+          sessionId: authCode.sessionId,
+          scope: body.scope,
+          expiresAt: new Date(exp * 1000),
+        });
+
+        await this.accessTokenRepository.create(accessTokenEntity);
+
+        const refreshToken = new RefreshToken({
+          token: uuidv4(),
+          userId: authCode.userId,
+          clientId: client.id,
+          sessionId: authCode.sessionId,
+          expiresAt: new Date(Date.now() + 30 * 24 * 3600 * 1000), // 30 days
+        });
+        await this.refreshTokenRepository.create(refreshToken);
+
+        const idTokenPayload = {
+          iss: config.url.baseUrl,
+          sub: authCode.userId,
+          aud: client.clientId,
+          iat: iat,
+          exp: exp,
+        };
+
+        const idToken = jwt.sign(idTokenPayload, privateKey, {
+          algorithm: config.jwt.signOptions.algorithm,
+          keyid: kid,
+        });
+
         return {
-          message: 'PKCE verification successful. Token generation pending.',
+          access_token: signedAccessToken,
+          token_type: 'Bearer',
+          expires_in: 3600,
+          refresh_token: refreshToken.token,
+          id_token: idToken,
         };
 
       case OAuthGrantType.CLIENT_CREDENTIALS:

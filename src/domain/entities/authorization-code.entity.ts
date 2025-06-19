@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { createHash } from 'crypto';
 import { CodeChallengeMethod } from '../../application/enums/oauth.enum';
+import { User } from './user.entity';
 
 type AuthorizationCodeProps = {
   id?: number;
@@ -10,8 +11,10 @@ type AuthorizationCodeProps = {
   sessionId: number;
   redirectUri: string;
   expiresAt: Date;
+  usedAt?: Date | null;
   codeChallenge?: string;
   codeChallengeMethod?: CodeChallengeMethod;
+  user?: Pick<User, 'id' | 'userId'>;
 };
 
 export class AuthorizationCode {
@@ -22,19 +25,23 @@ export class AuthorizationCode {
   public readonly sessionId: number;
   public readonly redirectUri: string;
   public readonly expiresAt: Date;
+  public readonly usedAt?: Date;
   public readonly codeChallenge?: string;
   public readonly codeChallengeMethod?: CodeChallengeMethod;
+  public readonly user?: Pick<User, 'id' | 'userId'>;
 
   constructor(props: AuthorizationCodeProps) {
     this.id = props.id;
     this.code = props.code;
-    this.userId = props.userId;
     this.clientId = props.clientId;
+    this.userId = props.userId;
     this.sessionId = props.sessionId;
     this.redirectUri = props.redirectUri;
     this.expiresAt = props.expiresAt;
+    this.usedAt = props.usedAt ?? undefined;
     this.codeChallenge = props.codeChallenge;
     this.codeChallengeMethod = props.codeChallengeMethod;
+    this.user = props.user ?? undefined;
   }
 
   public static create(
@@ -69,5 +76,9 @@ export class AuthorizationCode {
 
     // This case should ideally not be reached if validation is correct upstream.
     return false;
+  }
+
+  public isExpired(): boolean {
+    return new Date() > this.expiresAt;
   }
 }

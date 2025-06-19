@@ -1,9 +1,10 @@
+import { Session } from '../../domain/entities/session.entity';
 import { SessionRepository } from '../../domain/repositories/session.repository';
 
 export class ValidateSessionUseCase {
   constructor(private readonly sessionRepository: SessionRepository) {}
 
-  async execute(sessionToken?: string): Promise<any> {
+  async execute(sessionToken?: string): Promise<Session | null> {
     if (!sessionToken) {
       return null;
     }

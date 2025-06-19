@@ -1,10 +1,65 @@
+import { SignOptions } from 'jsonwebtoken';
+import * as jose from 'jose'; // The library for JWK generation
+import * as path from 'path'; // For handling file paths correctly
+
+// Define a type for our key objects
+interface IKey {
+  kid: string;
+  privateKey: string; // PEM string for signing JWTs
+  publicKeyJwk: jose.JWK; // The public key data for the JWKS endpoint
+}
+
 function getEnv(key: string): string {
-  const value = process.env[key];
+  // Using Bun's native environment variable access
+  const value = Bun.env[key];
   if (!value) {
     throw new Error(`Missing environment variable: ${key}`);
   }
   return value;
 }
+
+// 1. Get the JSON configuration string from the environment
+const keysConfigJson = getEnv('PRIVATE_KEYS');
+const keysInfo = JSON.parse(keysConfigJson);
+
+// 2. Read the private keys and generate the public JWKs in memory
+const keys: IKey[] = await Promise.all(
+  keysInfo.map(async (keyInfo: any) => {
+    const privateKeyPath = path.resolve(process.cwd(), keyInfo.privateKeyPath);
+    const privateKeyPem = await Bun.file(privateKeyPath).text();
+
+    // Use `importPKCS8` to read the private key
+    const privateKeyObject = await jose.importPKCS8(privateKeyPem, 'RS512', {
+      extractable: true,
+    });
+
+    // Export the public part of the key into the JWK format
+    const publicKeyJwk = await jose.exportJWK(privateKeyObject);
+
+    // Add the required metadata for the JWKS endpoint
+    publicKeyJwk.kid = keyInfo.kid;
+    publicKeyJwk.alg = 'RS512';
+    publicKeyJwk.use = 'sig'; // Indicate this key is for signature verification
+
+    return {
+      kid: keyInfo.kid,
+      privateKey: privateKeyPem,
+      publicKeyJwk: publicKeyJwk,
+    };
+  })
+);
+
+if (!keys || keys.length === 0) {
+  throw new Error(
+    'JWT keys configuration is invalid or files could not be read.'
+  );
+}
+
+const currentSigningKey = keys[0];
+
+const jwks = {
+  keys: keys.map((key) => key.publicKeyJwk),
+};
 
 export const config = {
   url: {
@@ -38,5 +93,13 @@ export const config = {
   },
   authCode: {
     expiresInMinutes: 5,
+  },
+  jwt: {
+    currentSigningKey,
+    jwks, // The JWKS object for your well-known endpoint
+    signOptions: {
+      algorithm: 'RS512',
+      expiresIn: '1h',
+    } as SignOptions,
   },
 };

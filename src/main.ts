@@ -2,7 +2,6 @@ import { Elysia } from 'elysia';
 import { oauthRoutes } from './infrastructure/web/routes/oauth.route';
 import { ValidateAuthorizeRequestUseCase } from './application/use-cases/authorize.use-case';
 import { OauthController } from './infrastructure/web/controllers/oauth.controller';
-import { HttpException } from './application/errors/http.error';
 import { authRoutes } from './infrastructure/web/routes/auth.route';
 import { AuthController } from './infrastructure/web/controllers/auth.controller';
 import { ValidateSessionUseCase } from './application/use-cases/validate-session.use-case';
@@ -14,12 +13,13 @@ import { MysqlUserRepository } from './infrastructure/persistence/repository/use
 import { MysqlSocialIdentityRepository } from './infrastructure/persistence/repository/social-identity.repository';
 import { CreateSessionUseCase } from './application/use-cases/create-session.use-case';
 import { GoogleOAuthService } from './infrastructure/service/google.service';
-import { FatalOAuthError } from './application/errors/oauth.error';
 import { FacebookOAuthService } from './infrastructure/service/facebook.service';
 import { staticPlugin } from '@elysiajs/static';
 import { LineOAuthService } from './infrastructure/service/line.service';
 import { TokenUseCase } from './application/use-cases/token.use-case';
 import { MysqlAuthorizationCodeRepository } from './infrastructure/persistence/repository/authorization-code.repository';
+import { MysqlAccessTokenRepository } from './infrastructure/persistence/repository/access-token.repository';
+import { MysqlRefreshTokenRepository } from './infrastructure/persistence/repository/refresh-token.repository';
 
 const app = new Elysia();
 
@@ -29,6 +29,8 @@ const mysqlSessionRepository = new MysqlSessionRepository();
 const mysqlUserRepository = new MysqlUserRepository();
 const mysqlSocialIdentityRepository = new MysqlSocialIdentityRepository();
 const mysqlAuthorizationCodeRepository = new MysqlAuthorizationCodeRepository();
+const mysqlAccessTokenRepository = new MysqlAccessTokenRepository();
+const mysqlRefreshTokenRepository = new MysqlRefreshTokenRepository();
 
 // b. Create the use case and inject the repository
 const validateAuthorizeUseCase = new ValidateAuthorizeRequestUseCase(
@@ -47,7 +49,9 @@ const loginSocialUseCase = new LoginSocialUseCase(
 const createSessionUseCase = new CreateSessionUseCase(mysqlSessionRepository);
 const tokenUseCase = new TokenUseCase(
   mysqlClientRepository,
-  mysqlAuthorizationCodeRepository
+  mysqlAuthorizationCodeRepository,
+  mysqlAccessTokenRepository,
+  mysqlRefreshTokenRepository
 );
 
 // External Services
@@ -72,9 +76,9 @@ const authController = new AuthController(
 
 app.use(staticPlugin());
 
-app.group('/api', (app) => app.use(authRoutes(authController)));
-
 app.use(oauthRoutes(oauthController));
+
+app.group('/api', (app) => app.use(authRoutes(authController)));
 
 const port = process.env.PORT || 3000;
 app.listen(port);
