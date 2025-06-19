@@ -20,6 +20,8 @@ import { TokenUseCase } from './application/use-cases/token.use-case';
 import { MysqlAuthorizationCodeRepository } from './infrastructure/persistence/repository/authorization-code.repository';
 import { MysqlAccessTokenRepository } from './infrastructure/persistence/repository/access-token.repository';
 import { MysqlRefreshTokenRepository } from './infrastructure/persistence/repository/refresh-token.repository';
+import { WellKnownController } from './infrastructure/web/controllers/well-known.controller';
+import { wellKnownRoutes } from './infrastructure/web/routes/well-known.route';
 
 const app = new Elysia();
 
@@ -73,9 +75,11 @@ const authController = new AuthController(
   loginSocialUseCase,
   createSessionUseCase
 );
+const wellKnownController = new WellKnownController();
 
 app.use(staticPlugin());
 
+app.use(wellKnownRoutes(wellKnownController));
 app.use(oauthRoutes(oauthController));
 
 app.group('/api', (app) => app.use(authRoutes(authController)));
