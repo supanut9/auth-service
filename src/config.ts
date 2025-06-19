@@ -1,6 +1,7 @@
 import { SignOptions } from 'jsonwebtoken';
 import * as jose from 'jose'; // The library for JWK generation
 import * as path from 'path'; // For handling file paths correctly
+import { createHash } from 'crypto';
 
 // Define a type for our key objects
 interface IKey {
@@ -36,13 +37,15 @@ const keys: IKey[] = await Promise.all(
     // Export the public part of the key into the JWK format
     const publicKeyJwk = await jose.exportJWK(privateKeyObject);
 
+    const kid = createHash('sha256').update(privateKeyPath).digest('hex');
+
     // Add the required metadata for the JWKS endpoint
-    publicKeyJwk.kid = keyInfo.kid;
+    publicKeyJwk.kid = kid;
     publicKeyJwk.alg = 'RS512';
     publicKeyJwk.use = 'sig'; // Indicate this key is for signature verification
 
     return {
-      kid: keyInfo.kid,
+      kid: kid,
       privateKey: privateKeyPem,
       publicKeyJwk: publicKeyJwk,
     };
