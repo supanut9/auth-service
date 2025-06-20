@@ -1,21 +1,21 @@
 type AccessTokenProps = {
   id?: number;
   token: string;
-  userId: number;
+  userId?: number;
   clientId: number;
-  sessionId: number;
+  sessionId?: number;
   scope?: string;
   expiresAt: Date;
-  authorizationCodeId?: number; // Add this line
-  sourceRefreshTokenId?: number; // Add this line
+  authorizationCodeId?: number;
+  sourceRefreshTokenId?: number;
 };
 
 export class AccessToken {
   public readonly id?: number;
   public readonly token: string;
-  public readonly userId: number;
+  public readonly userId?: number;
   public readonly clientId: number;
-  public readonly sessionId: number;
+  public readonly sessionId?: number;
   public readonly scope?: string;
   public readonly expiresAt: Date;
   public readonly authorizationCodeId?: number;

@@ -140,15 +140,11 @@ export const accessTokens = mysqlTable('access_tokens', {
   authorizationCodeId: int('authorization_code_id')
     .unique()
     .references(() => authorizationCodes.id),
-  userId: int('user_id')
-    .notNull()
-    .references(() => users.id),
+  userId: int('user_id').references(() => users.id),
   clientId: int('client_id')
     .notNull()
     .references(() => clients.id),
-  sessionId: int('session_id')
-    .notNull()
-    .references(() => sessions.id),
+  sessionId: int('session_id').references(() => sessions.id),
   scope: text('scope'),
   expiresAt: timestamp('expires_at').notNull(),
   revokedAt: timestamp('revoked_at'),

@@ -5,6 +5,7 @@ import {
   UnsupportedGrantTypeError,
   UnauthorizedClientError,
   InvalidGrantError,
+  InvalidScopeError,
 } from '../errors/oauth.error';
 import { v4 as uuidv4 } from 'uuid';
 import { ClientRepository } from '../../domain/repositories/client.repository';
@@ -184,10 +185,48 @@ export class TokenUseCase {
       }
 
       case OAuthGrantType.CLIENT_CREDENTIALS: {
-        // TODO:
-        // 1) generate access_token
+        if (body.scope) {
+          const requestedScopes = body.scope.split(' ');
+          if (!client.areScopesValid(requestedScopes)) {
+            throw new InvalidScopeError();
+          }
+        }
+
+        const { kid, privateKey } = config.jwt.currentSigningKey;
+        const accessTokenJti = uuidv4();
+
+        const iat = Math.floor(Date.now() / 1000);
+        const exp = iat + config.tokenExpiresIn.accessToken;
+
+        const accessTokenPayload = {
+          iss: config.url.baseUrl,
+          sub: client.clientId,
+          aud: client.clientId,
+          iat: iat,
+          exp: exp,
+          jti: accessTokenJti,
+          scope: body.scope || client.allowedScopes?.join(' '),
+        };
+
+        const signedAccessToken = jwt.sign(accessTokenPayload, privateKey, {
+          algorithm: config.jwt.signOptions.algorithm,
+          keyid: kid,
+        });
+
+        const accessTokenEntity = new AccessToken({
+          token: accessTokenJti,
+          clientId: client.id,
+          scope: body.scope,
+          expiresAt: new Date(exp * 1000),
+        });
+
+        await this.accessTokenRepository.create(accessTokenEntity);
+
         return {
-          message: 'client_credentials grant type not implemented yet',
+          access_token: signedAccessToken,
+          token_type: 'Bearer',
+          expires_in: config.tokenExpiresIn.accessToken,
+          scope: accessTokenPayload.scope,
         };
       }
 
@@ -263,7 +302,7 @@ export class TokenUseCase {
           access_token: signedAccessToken,
           token_type: 'Bearer',
           expires_in: config.tokenExpiresIn.accessToken,
-          refresh_token: newRefreshToken.token, // Return the new refresh token
+          refresh_token: newRefreshToken.token,
         };
       }
       default: {
