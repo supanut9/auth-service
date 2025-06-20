@@ -73,242 +73,248 @@ export class TokenUseCase {
     }
 
     switch (body.grant_type) {
-      case OAuthGrantType.AUTHORIZATION_CODE: {
-        const { code, redirect_uri, code_verifier } = body;
-
-        if (!code) {
-          throw new InvalidRequestError(
-            'The request body MUST include the code parameter.'
-          );
-        }
-
-        if (!redirect_uri) {
-          throw new InvalidRequestError(
-            'The request body MUST include the redirect_uri.'
-          );
-        }
-
-        const authCode = await this.authorizationCodeRepository.findByCode(
-          code
-        );
-
-        if (!authCode) {
-          throw new InvalidGrantError(
-            'Authorization code is invalid or expired.'
-          );
-        }
-
-        if (authCode.codeChallenge && !code_verifier) {
-          throw new InvalidRequestError('code_verifier is required.');
-        }
-
-        if (code_verifier && !authCode.verifyCodeChallenge(code_verifier)) {
-          throw new InvalidGrantError('Failed to verify code challenge.');
-        }
-
-        if (authCode.isExpired()) {
-          throw new InvalidGrantError('Authorization code is expired.');
-        }
-
-        if (authCode.usedAt) {
-          throw new InvalidGrantError(
-            'Authorization code has already been used.'
-          );
-        }
-
-        await this.authorizationCodeRepository.markAsUsed(code);
-
-        const { kid, privateKey } = config.jwt.currentSigningKey;
-        const accessTokenJti = uuidv4();
-
-        const iat = Math.floor(Date.now() / 1000);
-        const exp = iat + config.tokenExpiresIn.accessToken;
-
-        const accessTokenPayload = {
-          iss: config.url.baseUrl,
-          sub: authCode.user?.userId,
-          aud: client.clientId,
-          iat: iat,
-          exp: exp,
-          jti: accessTokenJti,
-          scope: body.scope,
-        };
-
-        const signedAccessToken = jwt.sign(accessTokenPayload, privateKey, {
-          algorithm: config.jwt.signOptions.algorithm,
-          keyid: kid,
-        });
-
-        const accessTokenEntity = new AccessToken({
-          token: accessTokenJti,
-          userId: authCode.userId,
-          clientId: client.id,
-          sessionId: authCode.sessionId,
-          scope: body.scope,
-          expiresAt: new Date(exp * 1000),
-          authorizationCodeId: authCode.id,
-        });
-
-        await this.accessTokenRepository.create(accessTokenEntity);
-
-        const refreshToken = new RefreshToken({
-          token: uuidv4(),
-          userId: authCode.userId,
-          clientId: client.id,
-          sessionId: authCode.sessionId,
-          expiresAt: new Date(
-            Date.now() + config.tokenExpiresIn.refreshToken * 1000
-          ),
-        });
-        await this.refreshTokenRepository.create(refreshToken);
-
-        const idTokenPayload = {
-          iss: config.url.baseUrl,
-          sub: authCode.userId,
-          aud: client.clientId,
-          iat: iat,
-          exp: iat + config.tokenExpiresIn.idToken,
-        };
-
-        const idToken = jwt.sign(idTokenPayload, privateKey, {
-          algorithm: config.jwt.signOptions.algorithm,
-          keyid: kid,
-        });
-
-        return {
-          access_token: signedAccessToken,
-          token_type: 'Bearer',
-          expires_in: config.tokenExpiresIn.accessToken,
-          refresh_token: refreshToken.token,
-          id_token: idToken,
-        };
-      }
-
-      case OAuthGrantType.CLIENT_CREDENTIALS: {
-        if (body.scope) {
-          const requestedScopes = body.scope.split(' ');
-          if (!client.areScopesValid(requestedScopes)) {
-            throw new InvalidScopeError();
-          }
-        }
-
-        const { kid, privateKey } = config.jwt.currentSigningKey;
-        const accessTokenJti = uuidv4();
-
-        const iat = Math.floor(Date.now() / 1000);
-        const exp = iat + config.tokenExpiresIn.accessToken;
-
-        const accessTokenPayload = {
-          iss: config.url.baseUrl,
-          sub: client.clientId,
-          aud: client.clientId,
-          iat: iat,
-          exp: exp,
-          jti: accessTokenJti,
-          scope: body.scope || client.allowedScopes?.join(' '),
-        };
-
-        const signedAccessToken = jwt.sign(accessTokenPayload, privateKey, {
-          algorithm: config.jwt.signOptions.algorithm,
-          keyid: kid,
-        });
-
-        const accessTokenEntity = new AccessToken({
-          token: accessTokenJti,
-          clientId: client.id,
-          scope: body.scope,
-          expiresAt: new Date(exp * 1000),
-        });
-
-        await this.accessTokenRepository.create(accessTokenEntity);
-
-        return {
-          access_token: signedAccessToken,
-          token_type: 'Bearer',
-          expires_in: config.tokenExpiresIn.accessToken,
-          scope: accessTokenPayload.scope,
-        };
-      }
-
-      case OAuthGrantType.REFRESH_TOKEN: {
-        if (!body.refresh_token) {
-          throw new InvalidRequestError(
-            'The request body MUST include the refresh_token parameter.'
-          );
-        }
-
-        const oldRefreshToken = await this.refreshTokenRepository.findByToken(
-          body.refresh_token
-        );
-
-        if (
-          !oldRefreshToken ||
-          oldRefreshToken.isRevoked() ||
-          oldRefreshToken.isExpired()
-        ) {
-          throw new InvalidGrantError(
-            'Refresh token is invalid, revoked, or expired.'
-          );
-        }
-
-        await this.refreshTokenRepository.revoke(oldRefreshToken.token);
-
-        const { kid, privateKey } = config.jwt.currentSigningKey;
-        const accessTokenJti = uuidv4();
-
-        const iat = Math.floor(Date.now() / 1000);
-        const exp = iat + config.tokenExpiresIn.accessToken;
-
-        const accessTokenPayload = {
-          iss: config.url.baseUrl,
-          sub: oldRefreshToken.user?.userId, // Use user ID from refresh token
-          aud: client.clientId,
-          iat: iat,
-          exp: exp,
-          jti: accessTokenJti,
-          scope: body.scope, // Can optionally allow scope reduction
-        };
-
-        const signedAccessToken = jwt.sign(accessTokenPayload, privateKey, {
-          algorithm: config.jwt.signOptions.algorithm,
-          keyid: kid,
-        });
-
-        const accessTokenEntity = new AccessToken({
-          token: accessTokenJti,
-          userId: oldRefreshToken.userId,
-          clientId: client.id,
-          sessionId: oldRefreshToken.sessionId,
-          scope: body.scope,
-          expiresAt: new Date(exp * 1000),
-          sourceRefreshTokenId: oldRefreshToken.id,
-        });
-
-        await this.accessTokenRepository.create(accessTokenEntity);
-
-        // Issue a new refresh token (rotation)
-        const newRefreshToken = new RefreshToken({
-          token: uuidv4(),
-          userId: oldRefreshToken.userId,
-          clientId: client.id,
-          sessionId: oldRefreshToken.sessionId,
-          expiresAt: new Date(
-            Date.now() + config.tokenExpiresIn.refreshToken * 1000
-          ),
-        });
-        await this.refreshTokenRepository.create(newRefreshToken);
-
-        return {
-          access_token: signedAccessToken,
-          token_type: 'Bearer',
-          expires_in: config.tokenExpiresIn.accessToken,
-          refresh_token: newRefreshToken.token,
-        };
-      }
-      default: {
+      case OAuthGrantType.AUTHORIZATION_CODE:
+        return this.handleAuthorizationCodeGrant(client, body);
+      case OAuthGrantType.CLIENT_CREDENTIALS:
+        return this.handleClientCredentialsGrant(client, body);
+      case OAuthGrantType.REFRESH_TOKEN:
+        return this.handleRefreshTokenGrant(client, body);
+      default:
         throw new UnsupportedGrantTypeError();
+    }
+  }
+
+  private async handleAuthorizationCodeGrant(
+    client: Client,
+    body: TokenRequest['body']
+  ) {
+    const { code, redirect_uri, code_verifier, scope } = body;
+
+    if (!code) {
+      throw new InvalidRequestError(
+        'The request body MUST include the code parameter.'
+      );
+    }
+
+    if (!redirect_uri) {
+      throw new InvalidRequestError(
+        'The request body MUST include the redirect_uri.'
+      );
+    }
+
+    const authCode = await this.authorizationCodeRepository.findByCode(code);
+
+    if (!authCode) {
+      throw new InvalidGrantError('Authorization code is invalid or expired.');
+    }
+
+    if (authCode.codeChallenge && !code_verifier) {
+      throw new InvalidRequestError('code_verifier is required.');
+    }
+
+    if (code_verifier && !authCode.verifyCodeChallenge(code_verifier)) {
+      throw new InvalidGrantError('Failed to verify code challenge.');
+    }
+
+    if (authCode.isExpired()) {
+      throw new InvalidGrantError('Authorization code is expired.');
+    }
+
+    if (authCode.usedAt) {
+      throw new InvalidGrantError('Authorization code has already been used.');
+    }
+
+    await this.authorizationCodeRepository.markAsUsed(code);
+
+    const { kid, privateKey } = config.jwt.currentSigningKey;
+    const accessTokenJti = uuidv4();
+    const iat = Math.floor(Date.now() / 1000);
+    const exp = iat + config.tokenExpiresIn.accessToken;
+
+    const accessTokenPayload = {
+      iss: config.url.baseUrl,
+      sub: authCode.user?.userId,
+      aud: client.clientId,
+      iat,
+      exp,
+      jti: accessTokenJti,
+      scope,
+    };
+
+    const signedAccessToken = jwt.sign(accessTokenPayload, privateKey, {
+      algorithm: config.jwt.signOptions.algorithm,
+      keyid: kid,
+    });
+
+    const accessTokenEntity = new AccessToken({
+      token: accessTokenJti,
+      userId: authCode.userId,
+      clientId: client.id,
+      sessionId: authCode.sessionId,
+      scope,
+      expiresAt: new Date(exp * 1000),
+      authorizationCodeId: authCode.id,
+    });
+    await this.accessTokenRepository.create(accessTokenEntity);
+
+    const refreshToken = new RefreshToken({
+      token: uuidv4(),
+      userId: authCode.userId,
+      clientId: client.id,
+      sessionId: authCode.sessionId,
+      expiresAt: new Date(
+        Date.now() + config.tokenExpiresIn.refreshToken * 1000
+      ),
+    });
+    await this.refreshTokenRepository.create(refreshToken);
+
+    const idTokenPayload = {
+      iss: config.url.baseUrl,
+      sub: authCode.userId,
+      aud: client.clientId,
+      iat,
+      exp: iat + config.tokenExpiresIn.idToken,
+    };
+
+    const idToken = jwt.sign(idTokenPayload, privateKey, {
+      algorithm: config.jwt.signOptions.algorithm,
+      keyid: kid,
+    });
+
+    return {
+      access_token: signedAccessToken,
+      token_type: 'Bearer',
+      expires_in: config.tokenExpiresIn.accessToken,
+      refresh_token: refreshToken.token,
+      id_token: idToken,
+    };
+  }
+
+  private async handleClientCredentialsGrant(
+    client: Client,
+    body: TokenRequest['body']
+  ) {
+    const { scope } = body;
+
+    if (scope) {
+      const requestedScopes = scope.split(' ');
+      if (!client.areScopesValid(requestedScopes)) {
+        throw new InvalidScopeError();
       }
     }
+
+    const { kid, privateKey } = config.jwt.currentSigningKey;
+    const accessTokenJti = uuidv4();
+    const iat = Math.floor(Date.now() / 1000);
+    const exp = iat + config.tokenExpiresIn.accessToken;
+
+    const accessTokenPayload = {
+      iss: config.url.baseUrl,
+      sub: client.clientId,
+      aud: client.clientId,
+      iat,
+      exp,
+      jti: accessTokenJti,
+      scope: scope || client.allowedScopes?.join(' '),
+    };
+
+    const signedAccessToken = jwt.sign(accessTokenPayload, privateKey, {
+      algorithm: config.jwt.signOptions.algorithm,
+      keyid: kid,
+    });
+
+    const accessTokenEntity = new AccessToken({
+      token: accessTokenJti,
+      clientId: client.id,
+      scope,
+      expiresAt: new Date(exp * 1000),
+    });
+    await this.accessTokenRepository.create(accessTokenEntity);
+
+    return {
+      access_token: signedAccessToken,
+      token_type: 'Bearer',
+      expires_in: config.tokenExpiresIn.accessToken,
+      scope: accessTokenPayload.scope,
+    };
+  }
+
+  private async handleRefreshTokenGrant(
+    client: Client,
+    body: TokenRequest['body']
+  ) {
+    const { refresh_token, scope } = body;
+
+    if (!refresh_token) {
+      throw new InvalidRequestError(
+        'The request body MUST include the refresh_token parameter.'
+      );
+    }
+
+    const oldRefreshToken = await this.refreshTokenRepository.findByToken(
+      refresh_token
+    );
+
+    if (
+      !oldRefreshToken ||
+      oldRefreshToken.isRevoked() ||
+      oldRefreshToken.isExpired()
+    ) {
+      throw new InvalidGrantError(
+        'Refresh token is invalid, revoked, or expired.'
+      );
+    }
+
+    await this.refreshTokenRepository.revoke(oldRefreshToken.token);
+
+    const { kid, privateKey } = config.jwt.currentSigningKey;
+    const accessTokenJti = uuidv4();
+    const iat = Math.floor(Date.now() / 1000);
+    const exp = iat + config.tokenExpiresIn.accessToken;
+
+    const accessTokenPayload = {
+      iss: config.url.baseUrl,
+      sub: oldRefreshToken.user?.userId,
+      aud: client.clientId,
+      iat,
+      exp,
+      jti: accessTokenJti,
+      scope,
+    };
+
+    const signedAccessToken = jwt.sign(accessTokenPayload, privateKey, {
+      algorithm: config.jwt.signOptions.algorithm,
+      keyid: kid,
+    });
+
+    const accessTokenEntity = new AccessToken({
+      token: accessTokenJti,
+      userId: oldRefreshToken.userId,
+      clientId: client.id,
+      sessionId: oldRefreshToken.sessionId,
+      scope,
+      expiresAt: new Date(exp * 1000),
+      sourceRefreshTokenId: oldRefreshToken.id,
+    });
+    await this.accessTokenRepository.create(accessTokenEntity);
+
+    const newRefreshToken = new RefreshToken({
+      token: uuidv4(),
+      userId: oldRefreshToken.userId,
+      clientId: client.id,
+      sessionId: oldRefreshToken.sessionId,
+      expiresAt: new Date(
+        Date.now() + config.tokenExpiresIn.refreshToken * 1000
+      ),
+    });
+    await this.refreshTokenRepository.create(newRefreshToken);
+
+    return {
+      access_token: signedAccessToken,
+      token_type: 'Bearer',
+      expires_in: config.tokenExpiresIn.accessToken,
+      refresh_token: newRefreshToken.token,
+    };
   }
 
   private async verifyClientCredentials(
@@ -360,7 +366,6 @@ export class TokenUseCase {
       throw new InvalidClientError('Client not found.');
     }
 
-    // In a real application, you would use a library like bcrypt to compare a hashed secret.
     if (
       (authMethod === TokenEndpointAuthMethod.CLIENT_SECRET_BASIC ||
         authMethod === TokenEndpointAuthMethod.CLIENT_SECRET_POST) &&
