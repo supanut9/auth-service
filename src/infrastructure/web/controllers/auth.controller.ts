@@ -1,15 +1,10 @@
-// src/infrastructure/web/controllers/auth.controller.ts (Finalized)
 import { Context, redirect } from 'elysia';
 import { CreateSessionUseCase } from '../../../application/use-cases/create-session.use-case';
-import { LoginSocialUseCase } from '../../../application/use-cases/login-social.use-case'; // Updated import
-import { GoogleOAuthService } from '../../service/google.service';
-// import { FacebookOAuthService } from '../../service/facebook.service'; // Assumed for the future
+import { LoginSocialUseCase } from '../../../application/use-cases/login-social.use-case';
 import { config } from '../../../config';
 import { SocialProviderType } from '../../../application/enums/provider.enum';
-import { FacebookOAuthService } from '../../service/facebook.service';
-import { LineOAuthService } from '../../service/line.service';
+import { SocialOAuthServiceFactory } from '../../service/social.service.factory';
 
-// A standardized object shape for user info from any social provider
 interface SocialUserInfo {
   id: string;
   email: string;
@@ -17,37 +12,21 @@ interface SocialUserInfo {
 
 export class AuthController {
   constructor(
-    private readonly googleOAuthService: GoogleOAuthService,
-    private readonly facebookOAuthService: FacebookOAuthService,
-    private readonly lineOAuthService: LineOAuthService,
-    private readonly loginSocialUseCase: LoginSocialUseCase, // Updated use case
+    private readonly socialOAuthServiceFactory: SocialOAuthServiceFactory,
+    private readonly loginSocialUseCase: LoginSocialUseCase,
     private readonly createSessionUseCase: CreateSessionUseCase
   ) {}
 
   login(context: Context) {}
 
-  // ... socialLoginRedirect method remains the same ...
   socialLoginRedirect(context: Context) {
     const provider = context.params.provider as SocialProviderType;
     const { state } = context.query;
-
-    let authorizationUrl = '';
-
-    if (provider === SocialProviderType.GOOGLE) {
-      authorizationUrl = this.googleOAuthService.getAuthorizationUrl(
-        state as string
-      );
-    } else if (provider === SocialProviderType.FACEBOOK) {
-      authorizationUrl = this.facebookOAuthService.getAuthorizationUrl(
-        state as string
-      );
-    } else if (provider === SocialProviderType.LINE) {
-      authorizationUrl = this.lineOAuthService.getAuthorizationUrl(
-        state as string
-      );
-    } else {
-      throw new Error('Unsupported provider');
-    }
+    const socialLoginService =
+      this.socialOAuthServiceFactory.getService(provider);
+    const authorizationUrl = socialLoginService.getAuthorizationUrl(
+      state as string
+    );
 
     return redirect(authorizationUrl, 302);
   }
@@ -62,24 +41,11 @@ export class AuthController {
     }
 
     try {
-      let userInfo: SocialUserInfo;
+      const socialLoginService =
+        this.socialOAuthServiceFactory.getService(provider);
 
       // Step 1: Get user info from the correct provider service
-      if (provider === SocialProviderType.GOOGLE) {
-        const googleUser = await this.googleOAuthService.getUserInfoFromCode(
-          code
-        );
-        userInfo = { id: googleUser.googleId, email: googleUser.email };
-      } else if (provider === SocialProviderType.FACEBOOK) {
-        const facebookUser =
-          await this.facebookOAuthService.getUserInfoFromCode(code);
-        userInfo = { id: facebookUser.id, email: facebookUser.email };
-      } else if (provider === SocialProviderType.LINE) {
-        const lineUser = await this.lineOAuthService.getUserInfoFromCode(code);
-        userInfo = { id: lineUser.id, email: lineUser.email };
-      } else {
-        throw new Error(`Unsupported provider: ${provider}`);
-      }
+      const userInfo = await socialLoginService.getUserInfoFromCode(code);
 
       // Step 2: Use the generic social login use case
       const user = await this.loginSocialUseCase.execute({
@@ -116,7 +82,6 @@ export class AuthController {
       return redirect(authorizeRedirect, 307);
     } catch (error) {
       console.error(`An error occurred during ${provider} callback:`, error);
-      // Make the error redirect more specific
       return redirect(`/login?error=${provider}_failed`, 307);
     }
   }
