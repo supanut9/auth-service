@@ -12,6 +12,8 @@ export class MysqlAccessTokenRepository implements AccessTokenRepository {
       sessionId: accessToken.sessionId,
       scope: accessToken.scope,
       expiresAt: accessToken.expiresAt,
+      authorizationCodeId: accessToken.authorizationCodeId,
+      sourceRefreshTokenId: accessToken.sourceRefreshTokenId,
     });
   }
 }

@@ -72,7 +72,7 @@ export class TokenUseCase {
     }
 
     switch (body.grant_type) {
-      case OAuthGrantType.AUTHORIZATION_CODE:
+      case OAuthGrantType.AUTHORIZATION_CODE: {
         const { code, redirect_uri, code_verifier } = body;
 
         if (!code) {
@@ -145,6 +145,7 @@ export class TokenUseCase {
           sessionId: authCode.sessionId,
           scope: body.scope,
           expiresAt: new Date(exp * 1000),
+          authorizationCodeId: authCode.id,
         });
 
         await this.accessTokenRepository.create(accessTokenEntity);
@@ -180,27 +181,94 @@ export class TokenUseCase {
           refresh_token: refreshToken.token,
           id_token: idToken,
         };
+      }
 
-      case OAuthGrantType.CLIENT_CREDENTIALS:
+      case OAuthGrantType.CLIENT_CREDENTIALS: {
         // TODO:
         // 1) generate access_token
         return {
           message: 'client_credentials grant type not implemented yet',
         };
+      }
 
-      case OAuthGrantType.REFRESH_TOKEN:
+      case OAuthGrantType.REFRESH_TOKEN: {
         if (!body.refresh_token) {
           throw new InvalidRequestError(
             'The request body MUST include the refresh_token parameter.'
           );
         }
-        // TODO:
-        // 1) verify refresh token
-        // 2) generate new access token (and maybe refresh token)
-        return { message: 'refresh_token grant type not implemented yet' };
 
-      default:
+        const oldRefreshToken = await this.refreshTokenRepository.findByToken(
+          body.refresh_token
+        );
+
+        if (
+          !oldRefreshToken ||
+          oldRefreshToken.isRevoked() ||
+          oldRefreshToken.isExpired()
+        ) {
+          throw new InvalidGrantError(
+            'Refresh token is invalid, revoked, or expired.'
+          );
+        }
+
+        await this.refreshTokenRepository.revoke(oldRefreshToken.token);
+
+        const { kid, privateKey } = config.jwt.currentSigningKey;
+        const accessTokenJti = uuidv4();
+
+        const iat = Math.floor(Date.now() / 1000);
+        const exp = iat + config.tokenExpiresIn.accessToken;
+
+        const accessTokenPayload = {
+          iss: config.url.baseUrl,
+          sub: oldRefreshToken.user?.userId, // Use user ID from refresh token
+          aud: client.clientId,
+          iat: iat,
+          exp: exp,
+          jti: accessTokenJti,
+          scope: body.scope, // Can optionally allow scope reduction
+        };
+
+        const signedAccessToken = jwt.sign(accessTokenPayload, privateKey, {
+          algorithm: config.jwt.signOptions.algorithm,
+          keyid: kid,
+        });
+
+        const accessTokenEntity = new AccessToken({
+          token: accessTokenJti,
+          userId: oldRefreshToken.userId,
+          clientId: client.id,
+          sessionId: oldRefreshToken.sessionId,
+          scope: body.scope,
+          expiresAt: new Date(exp * 1000),
+          sourceRefreshTokenId: oldRefreshToken.id,
+        });
+
+        await this.accessTokenRepository.create(accessTokenEntity);
+
+        // Issue a new refresh token (rotation)
+        const newRefreshToken = new RefreshToken({
+          token: uuidv4(),
+          userId: oldRefreshToken.userId,
+          clientId: client.id,
+          sessionId: oldRefreshToken.sessionId,
+          expiresAt: new Date(
+            Date.now() + config.tokenExpiresIn.refreshToken * 1000
+          ),
+        });
+        await this.refreshTokenRepository.create(newRefreshToken);
+
+        return {
+          access_token: signedAccessToken,
+          token_type: 'Bearer',
+          expires_in: config.tokenExpiresIn.accessToken,
+          refresh_token: newRefreshToken.token, // Return the new refresh token
+        };
+      }
+      default: {
         throw new UnsupportedGrantTypeError();
+      }
     }
   }
 

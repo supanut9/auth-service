@@ -6,6 +6,8 @@ type AccessTokenProps = {
   sessionId: number;
   scope?: string;
   expiresAt: Date;
+  authorizationCodeId?: number; // Add this line
+  sourceRefreshTokenId?: number; // Add this line
 };
 
 export class AccessToken {
@@ -16,6 +18,8 @@ export class AccessToken {
   public readonly sessionId: number;
   public readonly scope?: string;
   public readonly expiresAt: Date;
+  public readonly authorizationCodeId?: number;
+  public readonly sourceRefreshTokenId?: number;
 
   constructor(props: AccessTokenProps) {
     this.id = props.id;
@@ -25,5 +29,7 @@ export class AccessToken {
     this.sessionId = props.sessionId;
     this.scope = props.scope;
     this.expiresAt = props.expiresAt;
+    this.authorizationCodeId = props.authorizationCodeId;
+    this.sourceRefreshTokenId = props.sourceRefreshTokenId;
   }
 }
