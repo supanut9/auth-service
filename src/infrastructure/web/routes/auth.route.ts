@@ -1,11 +1,13 @@
 import { Elysia } from 'elysia';
 import { AuthController } from '../controllers/auth.controller';
+import { LoginBodyDTO } from '../dto/login.dto';
 
 export const authRoutes = (controller: AuthController) => {
   return (
     new Elysia({ prefix: 'auth' })
-      // --- Standard Authentication ---
-      .post('/login', (context) => controller.login(context))
+      .post('/login', (context) => controller.login(context), {
+        body: LoginBodyDTO,
+      })
       // .post('/register', (context) => controller.register(context))
 
       // --- Dynamic Social Provider Routes ---

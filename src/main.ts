@@ -23,6 +23,7 @@ import { MysqlRefreshTokenRepository } from './infrastructure/persistence/reposi
 import { WellKnownController } from './infrastructure/web/controllers/well-known.controller';
 import { wellKnownRoutes } from './infrastructure/web/routes/well-known.route';
 import { SocialOAuthServiceFactory } from './infrastructure/service/social.service.factory';
+import { LoginUserUseCase } from './application/use-cases/login-user.use-case';
 
 const app = new Elysia();
 
@@ -56,6 +57,7 @@ const tokenUseCase = new TokenUseCase(
   mysqlAccessTokenRepository,
   mysqlRefreshTokenRepository
 );
+const loginUserUseCase = new LoginUserUseCase(mysqlUserRepository);
 
 // External Services
 const googleOAuthService = new GoogleOAuthService();
@@ -79,7 +81,8 @@ const oauthController = new OauthController(
 const authController = new AuthController(
   socialOAuthServiceFactory,
   loginSocialUseCase,
-  createSessionUseCase
+  createSessionUseCase,
+  loginUserUseCase
 );
 const wellKnownController = new WellKnownController();
 

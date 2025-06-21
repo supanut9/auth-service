@@ -4,6 +4,8 @@ import { LoginSocialUseCase } from '../../../application/use-cases/login-social.
 import { config } from '../../../config';
 import { SocialProviderType } from '../../../application/enums/provider.enum';
 import { SocialOAuthServiceFactory } from '../../service/social.service.factory';
+import LoginPage from '../../../presentation/components/Login';
+import { LoginUserUseCase } from '../../../application/use-cases/login-user.use-case';
 
 interface SocialUserInfo {
   id: string;
@@ -14,10 +16,66 @@ export class AuthController {
   constructor(
     private readonly socialOAuthServiceFactory: SocialOAuthServiceFactory,
     private readonly loginSocialUseCase: LoginSocialUseCase,
-    private readonly createSessionUseCase: CreateSessionUseCase
+    private readonly createSessionUseCase: CreateSessionUseCase,
+    private readonly loginUserUseCase: LoginUserUseCase
   ) {}
 
-  login(context: Context) {}
+  async login(context: Context) {
+    const { body, cookie } = context;
+    const {
+      username, // from the form input with name="username"
+      password,
+      client_id,
+      redirect_uri,
+      response_type,
+      scope,
+      state,
+    } = body as any;
+
+    try {
+      // 1. Authenticate the user
+      const user = await this.loginUserUseCase.execute({
+        email: username,
+        password,
+      });
+
+      // 2. Create a session
+      const session = await this.createSessionUseCase.execute(user.id);
+
+      // 3. Set the session cookie
+      cookie[config.session.cookieName].set({
+        value: session.sessionToken,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        path: '/',
+        sameSite: 'lax',
+        maxAge: config.session.expiresInDays * 86400,
+      });
+
+      // 4. Redirect back to the OAuth authorization flow
+      const authorizeParams = new URLSearchParams({
+        client_id,
+        redirect_uri,
+        response_type,
+        scope: scope || '',
+        state: state || '',
+      });
+
+      return redirect(`/oauth/authorize?${authorizeParams.toString()}`, 307);
+    } catch (error) {
+      console.error('Login failed:', error);
+      // If login fails, re-render the login page with an error message
+      context.set.headers['Content-Type'] = 'text/html; charset=utf-8';
+      return LoginPage({
+        client_id,
+        redirect_uri,
+        response_type,
+        scope,
+        state,
+        error: 'Invalid email or password.',
+      });
+    }
+  }
 
   socialLoginRedirect(context: Context) {
     const provider = context.params.provider as SocialProviderType;
