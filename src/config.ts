@@ -63,6 +63,7 @@ const jwks = {
 export const config = {
   url: {
     baseUrl: getEnv('BASE_URL'),
+    authServiceUIBaseUrl: getEnv('AUTH_SERVICE_UI_BASE_URL'),
   },
   database: {
     host: getEnv('DB_HOST'),

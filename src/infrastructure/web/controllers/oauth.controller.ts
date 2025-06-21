@@ -1,10 +1,10 @@
 import { Context, redirect } from 'elysia';
 import { ValidateAuthorizeRequestUseCase } from '../../../application/use-cases/authorize.use-case';
 import { ValidateSessionUseCase } from '../../../application/use-cases/validate-session.use-case';
-import LoginPage from '../../../presentation/components/Login';
 import { GenerateAuthorizationCodeUseCase } from '../../../application/use-cases/generate-authorization-code.use-case';
 import { TokenUseCase } from '../../../application/use-cases/token.use-case';
 import { CodeChallengeMethod } from '../../../application/enums/oauth.enum';
+import { config } from '../../../config';
 
 export class OauthController {
   constructor(
@@ -44,8 +44,13 @@ export class OauthController {
       : null;
 
     if (!session) {
-      context.set.headers['Content-Type'] = 'text/html; charset=utf-8';
-      return LoginPage({ ...(context.query as any) });
+      const loginRedirectUrl = new URL(config.url.authServiceUIBaseUrl);
+      Object.entries(context.query).forEach(([key, value]) => {
+        if (value) {
+          loginRedirectUrl.searchParams.set(key, String(value));
+        }
+      });
+      return redirect(loginRedirectUrl.toString(), 307);
     }
 
     const code = await this.generateCodeUseCase.execute(

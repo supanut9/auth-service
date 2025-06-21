@@ -24,8 +24,11 @@ import { WellKnownController } from './infrastructure/web/controllers/well-known
 import { wellKnownRoutes } from './infrastructure/web/routes/well-known.route';
 import { SocialOAuthServiceFactory } from './infrastructure/service/social.service.factory';
 import { LoginUserUseCase } from './application/use-cases/login-user.use-case';
+import { errorHandler } from './infrastructure/web/middleware/error.handle';
 
 const app = new Elysia();
+
+app.use(errorHandler);
 
 // a. Create the repository (lowest level)
 const mysqlClientRepository = new MysqlClientRepository();
